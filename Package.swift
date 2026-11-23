@@ -2,13 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "WinToMac",
-    platforms: [
-        .macOS(.v13)
-    ],
+    name: "WinBridge",
+    platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "WinToMac"
+            name: "WinBridge",
+            path: "Sources/WinBridge"
         ),
+        .testTarget(
+            name: "WinBridgeTests",
+            dependencies: ["WinBridge"],
+            path: "Tests/WinBridgeTests"
+        )
     ]
 )

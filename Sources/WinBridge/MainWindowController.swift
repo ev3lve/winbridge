@@ -14,13 +14,13 @@ final class MainWindowController: NSObject, NSWindowDelegate {
                 backing: .buffered,
                 defer: false
             )
-            win.title = "WinToMac"
-            win.subtitle = "Виндовые привычки на Mac"
+            win.title = "WinBridge"
+            win.subtitle = "Виндовые привычки на macOS"
             win.titlebarAppearsTransparent = false
             win.toolbarStyle = .unified
             win.delegate = self
             win.center()
-            win.setFrameAutosaveName("WinToMacMainWindow")
+            win.setFrameAutosaveName("WinBridgeMainWindow")
 
             let hostingView = NSHostingView(rootView: MainWindowView())
             win.contentView = hostingView
@@ -55,7 +55,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
         sender.orderOut(nil)
         if AppSettings.shared.isAutoHideFromDockOnClose {
             NSApp.setActivationPolicy(.accessory)
-            logDebug("🪟 [WinToMac] Окно закрыто -> значок убран из Dock в фоновый трей")
+            logDebug("🪟 [WinBridge] Окно закрыто -> значок убран из Dock в фоновый трей")
         }
         return false
     }

@@ -1,65 +1,81 @@
 #!/bin/bash
 set -e
+
+# Переход в директорию проекта
 cd "$(dirname "$0")"
 
-echo "🛑 Завершение старых процессов..."
+# Остановка старой версии если работает
+killall WinBridge 2>/dev/null || true
 killall WinToMac 2>/dev/null || true
 
-echo "📦 Сборка релизной версии WinToMac..."
+echo "📦 Сборка релизной версии WinBridge..."
 swift build -c release
 
-APP_NAME="WinToMac"
-APP_DIR="$APP_NAME.app"
-CONTENTS="$APP_DIR/Contents"
-MACOS="$CONTENTS/MacOS"
-RESOURCES="$CONTENTS/Resources"
+APP_NAME="WinBridge"
+BUNDLE_ID="com.evolv.winbridge"
+BUILD_DIR=".build/release"
+APP_DIR="/Applications/$APP_NAME.app"
+CONTENTS_DIR="$APP_DIR/Contents"
+MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
+echo "📂 Подготовка бандла $APP_DIR..."
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS"
-mkdir -p "$RESOURCES"
+mkdir -p "$MACOS_DIR"
+mkdir -p "$RESOURCES_DIR"
 
-cp ".build/release/$APP_NAME" "$MACOS/$APP_NAME"
+# Копируем бинарник
+cp "$BUILD_DIR/$APP_NAME" "$MACOS_DIR/$APP_NAME"
+chmod +x "$MACOS_DIR/$APP_NAME"
+
+# Копируем фирменную Retina иконку
 if [ -f "AppIcon.icns" ]; then
-    cp "AppIcon.icns" "$RESOURCES/AppIcon.icns"
+    cp "AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
 fi
 
-cat << 'PLIST' > "$CONTENTS/Info.plist"
+# Создаем Info.plist
+cat <<EOF > "$CONTENTS_DIR/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>WinToMac</string>
+    <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.evolv.wintomac</string>
+    <string>$BUNDLE_ID</string>
     <key>CFBundleName</key>
-    <string>WinToMac</string>
+    <string>$APP_NAME</string>
+    <key>CFBundleDisplayName</key>
+    <string>$APP_NAME</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0</string>
+    <string>2.5.0</string>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>2.5.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
     <false/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
 </dict>
 </plist>
-PLIST
+EOF
 
-chmod +x "$MACOS/$APP_NAME"
+# Подписываем ad-hoc для стабильной работы Accessibility
+codesign --force --deep --sign - "$APP_DIR"
 
-echo "🔏 Подпись приложения (ad-hoc codesign для TCC / Accessibility)..."
-codesign -s - --force --deep --identifier "com.evolv.wintomac" "$APP_DIR"
+# Удаляем WinToMac.app из папки проекта если остался
+rm -rf "WinToMac.app"
+# Создаем символическую ссылку или копию в проекте
+cp -R "$APP_DIR" "$APP_NAME.app"
 
-echo "📂 Копирование в /Applications/..."
-rm -rf "/Applications/$APP_DIR"
-cp -R "$APP_DIR" /Applications/
+echo "🚀 Запуск $APP_NAME..."
+open "$APP_DIR"
 
-echo "🚀 Запуск приложения из /Applications/..."
-open "/Applications/$APP_DIR"
-
-echo "✅ WinToMac готов и запущен!"
+echo "✅ $APP_NAME готов и запущен!"

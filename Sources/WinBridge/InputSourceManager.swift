@@ -36,9 +36,9 @@ final class InputSourceManager {
 
         let status = TISSelectInputSource(nextSource)
         if status == noErr {
-            logDebug("🌐 [WinToMac] Язык ввода успешно изменен на: \"\(nextName)\" (Alt+Shift)")
+            logDebug("🌐 [WinBridge] Язык ввода успешно изменен на: \"\(nextName)\" (Alt+Shift)")
         } else {
-            logDebug("⚠️ [WinToMac] Ошибка TISSelectInputSource: \(status)")
+            logDebug("⚠️ [WinBridge] Ошибка TISSelectInputSource: \(status)")
         }
     }
 }

@@ -12,10 +12,10 @@ struct MainSettingsView: View {
                     .font(.title2)
                     .foregroundStyle(.blue)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("WinToMac")
+                    Text("WinBridge")
                         .font(.headline)
                         .fontWeight(.bold)
-                    Text("Виндовые привычки на Mac")
+                    Text("Виндовые привычки на macOS")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -27,7 +27,7 @@ struct MainSettingsView: View {
                         .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Закрыть WinToMac")
+                .help("Закрыть WinBridge")
             }
             .padding()
             .background(Color(NSColor.windowBackgroundColor))
@@ -114,7 +114,7 @@ struct MainSettingsView: View {
                             VStack(alignment: .leading) {
                                 Text("История буфера (Win + V)")
                                     .fontWeight(.medium)
-                                Text("Всплывающее окно со всеми скопированными текстами")
+                                Text("Всплывающее окно с историей и картинками")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -148,6 +148,11 @@ struct MainSettingsView: View {
                             .foregroundStyle(.secondary)
                             .textCase(.uppercase)
 
+                        Toggle(isOn: $settings.isAltTabEnabled) {
+                            Text("Переключение окон (Alt + Tab)")
+                                .fontWeight(.medium)
+                        }
+
                         Toggle(isOn: $settings.isAltShiftSwitchEnabled) {
                             Text("Смена языка по Alt + Shift")
                                 .fontWeight(.medium)
@@ -155,6 +160,11 @@ struct MainSettingsView: View {
 
                         Toggle(isOn: $settings.isCtrlBackspaceEnabled) {
                             Text("Виндовый Ctrl + Backspace")
+                                .fontWeight(.medium)
+                        }
+
+                        Toggle(isOn: $settings.isAltF4Enabled) {
+                            Text("Закрытие окон по Alt + F4")
                                 .fontWeight(.medium)
                         }
 
@@ -184,7 +194,7 @@ struct MainSettingsView: View {
 
             // Подвал
             HStack {
-                Text("Версия 2.0 (Dual UI)")
+                Text("WinBridge v2.5")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()

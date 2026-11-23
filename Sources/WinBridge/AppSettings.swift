@@ -16,6 +16,10 @@ final class AppSettings: ObservableObject {
     // Буфер обмена
     @AppStorage("isClipboardHistoryEnabled") var isClipboardHistoryEnabled: Bool = true
 
+    // Переключение окон (Alt + Tab)
+    @AppStorage("isAltTabEnabled") var isAltTabEnabled: Bool = true
+    @AppStorage("altTabMode") var altTabMode: String = "builtin" // "builtin" или "alttab"
+
     // Глобальные шорткаты Windows (Win+E, Win+D, Win+L, Ctrl+Shift+Esc, Alt+F4)
     @AppStorage("isGlobalShortcutsEnabled") var isGlobalShortcutsEnabled: Bool = true
     @AppStorage("isAltF4Enabled") var isAltF4Enabled: Bool = true
@@ -50,22 +54,11 @@ final class AppSettings: ObservableObject {
     init() {
         checkAccessibility()
         checkLaunchAtLogin()
-        ensureAltTabRunning()
         timer = Timer.publish(every: 1.5, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.checkAccessibility()
             }
-    }
-
-    func ensureAltTabRunning() {
-        if FileManager.default.fileExists(atPath: "/Applications/AltTab.app") {
-            let running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.lwouis.alt-tab-macos")
-            if running.isEmpty {
-                NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/AltTab.app"))
-                logDebug("🪟 [WinToMac] Запущен сервис оконного переключения AltTab")
-            }
-        }
     }
 
     func checkAccessibility() {
@@ -103,11 +96,11 @@ final class AppSettings: ObservableObject {
                 if SMAppService.mainApp.status == .enabled {
                     try SMAppService.mainApp.unregister()
                     self.isLaunchAtLoginEnabled = false
-                    logDebug("⚙️ [WinToMac] Автозапуск отключен")
+                    logDebug("⚙️ [WinBridge] Автозапуск отключен")
                 } else {
                     try SMAppService.mainApp.register()
                     self.isLaunchAtLoginEnabled = true
-                    logDebug("⚙️ [WinToMac] Автозапуск включен через SMAppService")
+                    logDebug("⚙️ [WinBridge] Автозапуск включен через SMAppService")
                 }
             } catch {
                 print("Failed to toggle launch at login: \(error)")
@@ -121,7 +114,7 @@ final class AppSettings: ObservableObject {
         } else {
             NSApp.setActivationPolicy(.accessory)
         }
-        logDebug("⚙️ [WinToMac] ActivationPolicy обновлена: showInDock=\(showInDock)")
+        logDebug("⚙️ [WinBridge] ActivationPolicy обновлена: showInDock=\(showInDock)")
     }
 
     func resetToDefaults() {
@@ -131,14 +124,17 @@ final class AppSettings: ObservableObject {
         isScreenshotEnabled = true
         isAltShiftSwitchEnabled = true
         isClipboardHistoryEnabled = true
+        isAltTabEnabled = true
+        altTabMode = "builtin"
         isGlobalShortcutsEnabled = true
+        isAltF4Enabled = true
         isWindowSnapEnabled = true
         isFinderFixEnabled = true
         isFinderExtrasEnabled = true
         isWindowsMouseScrollEnabled = true
         isLinearMouseEnabled = false
         isShowInDockEnabled = true
-        logDebug("⚙️ [WinToMac] Все настройки сброшены по умолчанию")
+        logDebug("⚙️ [WinBridge] Все настройки сброшены по умолчанию")
     }
 
     private func applyMouseSettings(_ linear: Bool) {

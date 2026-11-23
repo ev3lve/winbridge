@@ -76,12 +76,12 @@ final class WindowManager {
             AXUIElementSetAttributeValue(windowElement, kAXSizeAttribute as CFString, sizeVal)
             // Повторно позицию для надежности (некоторые окна сопротивляются первому изменению)
             AXUIElementSetAttributeValue(windowElement, kAXPositionAttribute as CFString, posVal)
-            logDebug("🪟 [WinToMac] Snap активного окна (\(frontApp.localizedName ?? "")) -> \(direction)")
+            logDebug("🪟 [WinBridge] Snap активного окна (\(frontApp.localizedName ?? "")) -> \(direction)")
         }
     }
 
     func lockScreen() {
-        logDebug("🔒 [WinToMac] Блокировка экрана (Win + L)")
+        logDebug("🔒 [WinBridge] Блокировка экрана (Win + L)")
         typealias SACLockScreenImmediateFunc = @convention(c) () -> Void
         if let handle = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_LAZY) {
             if let sym = dlsym(handle, "SACLockScreenImmediate") {
@@ -102,7 +102,7 @@ final class WindowManager {
     }
 
     func showDesktop() {
-        logDebug("🖥 [WinToMac] Показать рабочий стол (Win + D)")
+        logDebug("🖥 [WinBridge] Показать рабочий стол (Win + D)")
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
         // F11 (код 103) в macOS — стандартный шорткат Показать рабочий стол
         if let down = CGEvent(keyboardEventSource: source, virtualKey: 103, keyDown: true),
@@ -113,13 +113,13 @@ final class WindowManager {
     }
 
     func openActivityMonitor() {
-        logDebug("⚡️ [WinToMac] Открытие Диспетчера задач (Ctrl + Shift + Esc)")
+        logDebug("⚡️ [WinBridge] Открытие Диспетчера задач (Ctrl + Shift + Esc)")
         let url = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
         NSWorkspace.shared.open(url)
     }
 
     func openFinder() {
-        logDebug("📂 [WinToMac] Открытие Проводника (Win + E)")
+        logDebug("📂 [WinBridge] Открытие Проводника (Win + E)")
         let home = FileManager.default.homeDirectoryForCurrentUser
         NSWorkspace.shared.open(home)
     }

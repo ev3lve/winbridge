@@ -36,7 +36,15 @@ struct ClipboardItem: Identifiable, Equatable, Codable, Hashable {
     var imageURL: URL? {
         guard let name = imageFileName else { return nil }
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent("WinToMac/images", isDirectory: true).appendingPathComponent(name)
+        let newDir = appSupport.appendingPathComponent("WinBridge/images", isDirectory: true).appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: newDir.path) {
+            return newDir
+        }
+        let oldDir = appSupport.appendingPathComponent("WinToMac/images", isDirectory: true).appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: oldDir.path) {
+            return oldDir
+        }
+        return newDir
     }
 
     var thumbnailImage: NSImage? {
@@ -55,7 +63,7 @@ final class ClipboardManager: ObservableObject {
 
     private var storageDir: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = appSupport.appendingPathComponent("WinToMac", isDirectory: true)
+        let dir = appSupport.appendingPathComponent("WinBridge", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -121,7 +129,7 @@ final class ClipboardManager: ObservableObject {
 
                     self.items = updated
                     saveItems()
-                    logDebug("📸 [WinToMac] Сохранено изображение в буфер обмена: \(desc)")
+                    logDebug("📸 [WinBridge] Сохранено изображение в буфер обмена: \(desc)")
                     return
                 }
             }
@@ -156,7 +164,7 @@ final class ClipboardManager: ObservableObject {
         saveItems()
 
         let preview = str.replacingOccurrences(of: "\n", with: " ").prefix(35)
-        logDebug("📋 [WinToMac] Буфер обмена (текст): \"\(preview)...\" (Всего: \(updated.count))")
+        logDebug("📋 [WinBridge] Буфер обмена (текст): \"\(preview)...\" (Всего: \(updated.count))")
     }
 
     func paste(item: ClipboardItem) {
@@ -166,10 +174,10 @@ final class ClipboardManager: ObservableObject {
         if item.type == .image, let url = item.imageURL, let data = try? Data(contentsOf: url), let img = NSImage(data: data) {
             pasteboard.setData(data, forType: .png)
             pasteboard.writeObjects([img])
-            logDebug("📋 [WinToMac] Подготовлено изображение для вставки")
+            logDebug("📋 [WinBridge] Подготовлено изображение для вставки")
         } else {
             pasteboard.setString(item.text, forType: .string)
-            logDebug("📋 [WinToMac] Подготовлен текст для вставки: \"\(item.text.prefix(25))...\"")
+            logDebug("📋 [WinBridge] Подготовлен текст для вставки: \"\(item.text.prefix(25))...\"")
         }
 
         lastChangeCount = pasteboard.changeCount
@@ -195,10 +203,10 @@ final class ClipboardManager: ObservableObject {
         if item.type == .image, let url = item.imageURL, let data = try? Data(contentsOf: url), let img = NSImage(data: data) {
             pasteboard.setData(data, forType: .png)
             pasteboard.writeObjects([img])
-            logDebug("📋 [WinToMac] Изображение скопировано в буфер")
+            logDebug("📋 [WinBridge] Изображение скопировано в буфер")
         } else {
             pasteboard.setString(item.text, forType: .string)
-            logDebug("📋 [WinToMac] Текст скопирован в буфер: \"\(item.text.prefix(30))...\"")
+            logDebug("📋 [WinBridge] Текст скопирован в буфер: \"\(item.text.prefix(30))...\"")
         }
 
         lastChangeCount = pasteboard.changeCount
@@ -208,7 +216,7 @@ final class ClipboardManager: ObservableObject {
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
             items[idx].isPinned.toggle()
             saveItems()
-            logDebug("📌 [WinToMac] Статус pin изменен: \(items[idx].isPinned) для \"\(item.text.prefix(25))...\"")
+            logDebug("📌 [WinBridge] Статус pin изменен: \(items[idx].isPinned) для \"\(item.text.prefix(25))...\"")
         }
     }
 
@@ -229,7 +237,7 @@ final class ClipboardManager: ObservableObject {
         }
         items = items.filter { $0.isPinned }
         saveItems()
-        logDebug("📋 [WinToMac] Буфер обмена очищен (закрепленные сохранены)")
+        logDebug("📋 [WinBridge] Буфер обмена очищен (закрепленные сохранены)")
     }
 
     private func saveItems() {
@@ -242,11 +250,18 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func loadItems() {
+        // Миграция данных из WinToMac если есть
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let oldURL = appSupport.appendingPathComponent("WinToMac/clipboard_history.json")
+        if !FileManager.default.fileExists(atPath: storageURL.path) && FileManager.default.fileExists(atPath: oldURL.path) {
+            try? FileManager.default.copyItem(at: oldURL, to: storageURL)
+        }
+
         guard FileManager.default.fileExists(atPath: storageURL.path) else { return }
         do {
             let data = try Data(contentsOf: storageURL)
             self.items = try JSONDecoder().decode([ClipboardItem].self, from: data)
-            logDebug("📋 [WinToMac] Загружено \(items.count) сохраненных записей буфера обмена")
+            logDebug("📋 [WinBridge] Загружено \(items.count) сохраненных записей буфера обмена")
         } catch {
             print("Failed to load clipboard items: \(error)")
         }

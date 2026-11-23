@@ -89,7 +89,7 @@ struct DashboardTabView: View {
                     HStack {
                         Image(systemName: "hand.wave.fill")
                             .foregroundStyle(.yellow)
-                        Text("Добро пожаловать в WinToMac!")
+                        Text("Добро пожаловать в WinBridge!")
                             .font(.title2)
                             .fontWeight(.bold)
                     }
@@ -105,13 +105,21 @@ struct DashboardTabView: View {
                 )
 
                 // Карточки быстрого статуса
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
                     StatusCard(
                         icon: "keyboard.fill",
                         color: .blue,
                         title: "Смена языка",
                         value: "Alt + Shift",
                         subtitle: settings.isAltShiftSwitchEnabled ? "Включено" : "Отключено"
+                    )
+
+                    StatusCard(
+                        icon: "square.split.2x2.fill",
+                        color: .indigo,
+                        title: "Окна",
+                        value: "Alt + Tab",
+                        subtitle: settings.isAltTabEnabled ? (settings.altTabMode == "builtin" ? "Встроенный" : "AltTab") : "Отключено"
                     )
 
                     StatusCard(
@@ -136,6 +144,14 @@ struct DashboardTabView: View {
                         title: "Ctrl + Backspace",
                         value: "По словам",
                         subtitle: "Стирает 1 слово везде"
+                    )
+
+                    StatusCard(
+                        icon: "xmark.square.fill",
+                        color: .red,
+                        title: "Alt + F4",
+                        value: "Закрытие окон",
+                        subtitle: settings.isAltF4Enabled ? "Включено" : "Отключено"
                     )
                 }
 
@@ -270,6 +286,46 @@ struct KeyboardTabView: View {
                         subtitle: "Интерактивное выделение области экрана прямо в буфер обмена",
                         isOn: $settings.isScreenshotEnabled
                     )
+                }
+                .padding()
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(12)
+
+                // Секция: Переключение окон Alt + Tab
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Переключение окон (Alt + Tab)")
+                        .font(.headline)
+
+                    ToggleRow(
+                        title: "Виндовый переключатель окон Alt + Tab",
+                        subtitle: "Быстрое переключение между запущенными программами с карточками приложений",
+                        isOn: $settings.isAltTabEnabled
+                    )
+
+                    if settings.isAltTabEnabled {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Режим переключения:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Picker("", selection: $settings.altTabMode) {
+                                Text("Встроенный WinBridge (нативный HUD)").tag("builtin")
+                                Text("Внешний AltTab (миниатюры окон)").tag("alttab")
+                            }
+                            .pickerStyle(.segmented)
+
+                            if settings.altTabMode == "alttab" {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(.blue)
+                                    Text("Для внешнего AltTab требуются разрешения в Системных настройках macOS.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.top, 4)
+                            }
+                        }
+                    }
                 }
                 .padding()
                 .background(Color(NSColor.controlBackgroundColor))
@@ -619,7 +675,7 @@ struct SettingsTabView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Запуск при входе в систему")
                                 .font(.headline)
-                            Text("Автоматически стартовать WinToMac при включении компьютера")
+                            Text("Автоматически стартовать WinBridge при включении компьютера")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -689,7 +745,7 @@ struct SettingsTabView: View {
 
                 // Информация о системе
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("WinToMac v2.0")
+                    Text("WinBridge v2.5")
                         .font(.caption)
                         .fontWeight(.bold)
                     Text("Специально разработано для Ryzen 7 5700 + RTX 3050 (macOS Tahoe 26.7.3). Open Source Swift & SwiftUI.")

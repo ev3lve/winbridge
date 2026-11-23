@@ -5,12 +5,15 @@ import CoreGraphics
 func logDebug(_ message: String) {
     let line = "[\(Date())] \(message)\n"
     if let data = line.data(using: .utf8) {
-        if let fileHandle = FileHandle(forWritingAtPath: "/tmp/wintomac.log") {
-            fileHandle.seekToEndOfFile()
-            fileHandle.write(data)
-            try? fileHandle.close()
-        } else {
-            FileManager.default.createFile(atPath: "/tmp/wintomac.log", contents: data, attributes: nil)
+        let paths = ["/tmp/winbridge.log", "/tmp/wintomac.log"]
+        for p in paths {
+            if let fileHandle = FileHandle(forWritingAtPath: p) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(data)
+                try? fileHandle.close()
+            } else {
+                FileManager.default.createFile(atPath: p, contents: data, attributes: nil)
+            }
         }
     }
 }
@@ -20,6 +23,7 @@ final class EventTapManager: @unchecked Sendable {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isLangSwitchCandidate = false
+    var isSwitcherVisible: Bool = false
 
     var isTapActive: Bool {
         return eventTap != nil
@@ -42,7 +46,7 @@ final class EventTapManager: @unchecked Sendable {
         logDebug("EventTapManager.start() called. AXIsProcessTrusted = \(trusted)")
 
         guard trusted else {
-            logDebug("⚠️ [WinToMac] Права Accessibility не выданы. Ожидание пользователя...")
+            logDebug("⚠️ [WinBridge] Права Accessibility не выданы. Ожидание пользователя...")
             return
         }
 
@@ -62,7 +66,7 @@ final class EventTapManager: @unchecked Sendable {
             },
             userInfo: nil
         ) else {
-            logDebug("❌ [WinToMac] CGEvent.tapCreate вернул nil!")
+            logDebug("❌ [WinBridge] CGEvent.tapCreate вернул nil!")
             return
         }
 
@@ -71,14 +75,14 @@ final class EventTapManager: @unchecked Sendable {
         self.runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        logDebug("✅ [WinToMac] CGEventTap перехватчик успешно создан и запущен!")
+        logDebug("✅ [WinBridge] CGEventTap перехватчик успешно создан и запущен!")
     }
 
     func handleEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
-                logDebug("🔄 [WinToMac] EventTap восстановлен после timeout")
+                logDebug("🔄 [WinBridge] EventTap восстановлен после timeout")
             }
             return Unmanaged.passRetained(event)
         }
@@ -103,8 +107,16 @@ final class EventTapManager: @unchecked Sendable {
         let hasShift = flags.contains(.maskShift)
         let hasAlt = flags.contains(.maskAlternate)
 
-        // 2. Переключение языка ввода по Alt + Shift или Ctrl + Shift (как в Windows)
+        // 1.1. Переключатель окон Alt + Tab: отслеживаем отпускание Alt
         if type == .flagsChanged {
+            if isSwitcherVisible && !event.flags.contains(.maskAlternate) {
+                isSwitcherVisible = false
+                DispatchQueue.main.async {
+                    AppSwitcherController.shared.commit()
+                }
+            }
+
+            // 2. Переключение языка ввода по Alt + Shift или Ctrl + Shift (как в Windows)
             let pureModifiers = flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift])
             let isAltShift = (pureModifiers == [.maskAlternate, .maskShift])
             let isCtrlShift = (pureModifiers == [.maskCommand, .maskShift]) || (pureModifiers == [.maskControl, .maskShift])
@@ -114,7 +126,7 @@ final class EventTapManager: @unchecked Sendable {
             } else if isLangSwitchCandidate {
                 isLangSwitchCandidate = false
                 if isEnabled("isAltShiftSwitchEnabled") {
-                    logDebug("🌐 [WinToMac] Сработал Alt+Shift / Ctrl+Shift -> смена раскладки")
+                    logDebug("🌐 [WinBridge] Сработал Alt+Shift / Ctrl+Shift -> смена раскладки")
                     DispatchQueue.main.async {
                         InputSourceManager.shared.cycleInputSource()
                     }
@@ -133,6 +145,28 @@ final class EventTapManager: @unchecked Sendable {
 
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
 
+        // 1.2. Навигация в открытом переключателе окон Alt + Tab
+        if type == .keyDown && isSwitcherVisible {
+            if keyCode == 53 { // Esc -> отмена
+                isSwitcherVisible = false
+                DispatchQueue.main.async { AppSwitcherController.shared.cancel() }
+                return nil
+            } else if keyCode == 48 { // Tab -> следующий / предыдущий (Shift)
+                DispatchQueue.main.async { AppSwitcherController.shared.cycle(reverse: hasShift) }
+                return nil
+            } else if keyCode == 123 { // Left Arrow
+                DispatchQueue.main.async { AppSwitcherController.shared.cycle(reverse: true) }
+                return nil
+            } else if keyCode == 124 { // Right Arrow
+                DispatchQueue.main.async { AppSwitcherController.shared.cycle(reverse: false) }
+                return nil
+            } else if keyCode == 36 || keyCode == 49 { // Enter / Space -> применить
+                isSwitcherVisible = false
+                DispatchQueue.main.async { AppSwitcherController.shared.commit() }
+                return nil
+            }
+        }
+
         // 3. Виндовый Ctrl + Backspace (код 51) -> стирает ровно одно слово назад ВЕЗДЕ
         if isEnabled("isCtrlBackspaceEnabled") && keyCode == 51 && (hasCmd || hasCtrl) && !hasShift && !hasAlt {
             var newFlags = flags
@@ -140,7 +174,7 @@ final class EventTapManager: @unchecked Sendable {
             newFlags.insert(.maskAlternate)
             event.flags = newFlags
             if type == .keyDown {
-                logDebug("🎯 [WinToMac] Сработал Ctrl+Backspace -> подменен на Option+Backspace")
+                logDebug("🎯 [WinBridge] Сработал Ctrl+Backspace -> подменен на Option+Backspace")
             }
             return Unmanaged.passRetained(event)
         }
@@ -152,7 +186,7 @@ final class EventTapManager: @unchecked Sendable {
             newFlags.insert(.maskAlternate)
             event.flags = newFlags
             if type == .keyDown {
-                logDebug("🎯 [WinToMac] Сработал Ctrl+Delete -> подменен на Option+Delete")
+                logDebug("🎯 [WinBridge] Сработал Ctrl+Delete -> подменен на Option+Delete")
             }
             return Unmanaged.passRetained(event)
         }
@@ -164,7 +198,7 @@ final class EventTapManager: @unchecked Sendable {
             newFlags.insert(.maskAlternate)
             event.flags = newFlags
             if type == .keyDown {
-                logDebug("🎯 [WinToMac] Сработал Ctrl+Стрелка (\(keyCode)) -> подменен на Option+Стрелка (Shift=\(hasShift))")
+                logDebug("🎯 [WinBridge] Сработал Ctrl+Стрелка (\(keyCode)) -> подменен на Option+Стрелка (Shift=\(hasShift))")
             }
             return Unmanaged.passRetained(event)
         }
@@ -174,9 +208,29 @@ final class EventTapManager: @unchecked Sendable {
             return Unmanaged.passRetained(event)
         }
 
+        // 5.1. Виндовый Alt + Tab (код 48 = Tab, флаг Alt/Option)
+        if keyCode == 48 {
+            logDebug("🔍 [WinBridge] Нажат Tab (48): hasAlt=\(hasAlt), hasCmd=\(hasCmd), hasCtrl=\(hasCtrl), hasShift=\(hasShift)")
+            if isEnabled("isAltTabEnabled") && hasAlt && !hasCmd && !hasCtrl {
+                let mode = UserDefaults.standard.string(forKey: "altTabMode") ?? "builtin"
+                if mode == "alttab" {
+                    // Передаем дальше для внешнего AltTab.app
+                    return Unmanaged.passRetained(event)
+                } else {
+                    // Встроенный переключатель WinBridge
+                    logDebug("🪟 [WinBridge] Запуск встроенного Alt+Tab переключателя")
+                    isSwitcherVisible = true
+                    DispatchQueue.main.async {
+                        AppSwitcherController.shared.cycle(reverse: hasShift)
+                    }
+                    return nil
+                }
+            }
+        }
+
         // 6. Буфер обмена как в Windows: Win + V (код 9 = 'V')
         if isEnabled("isClipboardHistoryEnabled") && keyCode == 9 && hasCtrl && !hasCmd && !hasAlt && !hasShift {
-            logDebug("📋 [WinToMac] Нажато Win + V -> открытие истории буфера обмена")
+            logDebug("📋 [WinBridge] Нажато Win + V -> открытие истории буфера обмена")
             DispatchQueue.main.async {
                 ClipboardWindowController.shared.toggle()
             }
@@ -229,7 +283,7 @@ final class EventTapManager: @unchecked Sendable {
 
         // 8.1. Закрытие программ по Alt + F4 (код 118 = F4)
         if isEnabled("isAltF4Enabled") && keyCode == 118 && hasAlt && !hasCmd && !hasCtrl && !hasShift {
-            logDebug("🚪 [WinToMac] Нажато Alt + F4 -> закрытие активного приложения")
+            logDebug("🚪 [WinBridge] Нажато Alt + F4 -> закрытие активного приложения")
             guard let source = CGEventSource(stateID: .combinedSessionState) else { return nil }
             let isFinder = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder"
             let targetKey: CGKeyCode = isFinder ? 13 : 12 // 13 = 'W' (закрыть окно), 12 = 'Q' (выйти)
@@ -245,7 +299,7 @@ final class EventTapManager: @unchecked Sendable {
 
         // 9. Скриншот области (Ножницы): Win + Shift + S / Ctrl + Shift + S (код 1 = 'S', 57 = CapsLock)
         if isEnabled("isScreenshotEnabled") && (keyCode == 1 || keyCode == 57) && (hasCtrl || hasCmd) && hasShift && !hasAlt {
-            logDebug("📸 [WinToMac] Сработал скриншот области! Запуск screencapture -i -c")
+            logDebug("📸 [WinBridge] Сработал скриншот области! Запуск screencapture -i -c")
             DispatchQueue.global(qos: .userInteractive).async {
                 let task = Process()
                 task.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -295,7 +349,7 @@ final class EventTapManager: @unchecked Sendable {
                         up.flags = .maskCommand
                         down.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
                         up.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
-                        logDebug("🎯 [WinToMac] Finder: Enter -> Открыть файл")
+                        logDebug("🎯 [WinBridge] Finder: Enter -> Открыть файл")
                         return nil
                     }
                 } else if keyCode == 120 { // F2 -> Return
@@ -303,7 +357,7 @@ final class EventTapManager: @unchecked Sendable {
                        let up = CGEvent(keyboardEventSource: source, virtualKey: 36, keyDown: false) {
                         down.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
                         up.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
-                        logDebug("🎯 [WinToMac] Finder: F2 -> Переименовать")
+                        logDebug("🎯 [WinBridge] Finder: F2 -> Переименовать")
                         return nil
                     }
                 }
@@ -321,7 +375,7 @@ final class EventTapManager: @unchecked Sendable {
                         up.flags = .maskCommand
                         down.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
                         up.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
-                        logDebug("📂 [WinToMac] Finder: Del -> Переместить в корзину (Cmd+Del)")
+                        logDebug("📂 [WinBridge] Finder: Del -> Переместить в корзину (Cmd+Del)")
                         return nil
                     }
                 }
@@ -334,7 +388,7 @@ final class EventTapManager: @unchecked Sendable {
                         up.flags = .maskCommand
                         down.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
                         up.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
-                        logDebug("📂 [WinToMac] Finder: Backspace -> На папку выше (Cmd+Up)")
+                        logDebug("📂 [WinBridge] Finder: Backspace -> На папку выше (Cmd+Up)")
                         return nil
                     }
                 }
@@ -348,7 +402,7 @@ final class EventTapManager: @unchecked Sendable {
                         up.flags = [.maskCommand, .maskShift]
                         down.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
                         up.post(tap: CGEventTapLocation.cgAnnotatedSessionEventTap)
-                        logDebug("📂 [WinToMac] Finder: Ctrl + H -> Переключение скрытых файлов")
+                        logDebug("📂 [WinBridge] Finder: Ctrl + H -> Переключение скрытых файлов")
                         return nil
                     }
                 }

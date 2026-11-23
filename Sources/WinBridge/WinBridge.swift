@@ -11,7 +11,7 @@ final class StatusBarController: NSObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "WinToMac")
+            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "WinBridge")
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Показываем главное окно приложения при первом запуске
         MainWindowController.shared.show()
-        print("🚀 [WinToMac] Запущен: главное окно + Menu Bar (трей)!")
+        print("🚀 [WinBridge] Запущен: главное окно + Menu Bar (трей)!")
     }
 
     // При клике на иконку в Dock открываем главное окно
